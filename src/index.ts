@@ -1,15 +1,20 @@
 import { Env } from './types';
-import { badRequest, notFound } from './utils';
+import { badRequest, notFound, corsHeaders } from './utils';
 import { get7DayForecastData, get36HourForecastData } from './cwa_service';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Handle CORS Preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     const url = new URL(request.url);
     const path = url.pathname;
 
     // 0. Health Check
     if (path === '/health') {
-      return Response.json({ status: 'ok', timestamp: new Date().toISOString() });
+      return Response.json({ status: 'ok', timestamp: new Date().toISOString() }, { headers: corsHeaders });
     }
 
     // 2. Routing for 7-Day Forecast (/api/7day/...)
@@ -18,7 +23,7 @@ export default {
         const data = await get7DayForecastData(env, ctx);
         
         if (path === '/api/7day/locations') {
-          return Response.json({ locations: Array.from(data.index.keys()) });
+          return Response.json({ locations: Array.from(data.index.keys()) }, { headers: corsHeaders });
         }
         
         if (path === '/api/7day/forecast') {
@@ -37,10 +42,10 @@ export default {
             updatedAt: data.updatedAt, 
             stale: data.stale, 
             days: forecast 
-          });
+          }, { headers: corsHeaders });
         }
       } catch (e: any) {
-        return new Response(`7-Day API Error: ${e.message}`, { status: 502 });
+        return new Response(`7-Day API Error: ${e.message}`, { status: 502, headers: corsHeaders });
       }
     }
 
@@ -50,7 +55,7 @@ export default {
         const data = await get36HourForecastData(env, ctx);
         
         if (path === '/api/36hour/locations') {
-          return Response.json({ locations: Array.from(data.index.keys()) });
+          return Response.json({ locations: Array.from(data.index.keys()) }, { headers: corsHeaders });
         }
         
         if (path === '/api/36hour/forecast') {
@@ -66,10 +71,10 @@ export default {
             updatedAt: data.updatedAt, 
             stale: data.stale, 
             periods: forecast 
-          });
+          }, { headers: corsHeaders });
         }
       } catch (e: any) {
-        return new Response(`36-Hour API Error: ${e.message}`, { status: 502 });
+        return new Response(`36-Hour API Error: ${e.message}`, { status: 502, headers: corsHeaders });
       }
     }
 

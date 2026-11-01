@@ -114,7 +114,7 @@ cwaopendata
 ```http
 GET /api/7day/forecast?location=臺北市
 ```
-https://cwa-forecast.sekewei.workers.dev/api/7day/forecast?location=%E8%87%BA%E5%8C%97%E5%B8%82
+https://cwa-forecast.sekewei.workers.dev/api/7day/forecast?
 
 
 | 欄位 | 型別 | 必填 | 說明 |
@@ -228,7 +228,7 @@ Return 7-day forecast
       "min": 25,
       "max": 26,
       "weather": "晴時多雲",
-      "weatherCode": "02"
+      "location=%E8%87%BA%E5%8C%97%E5%B8%82weatherCode": "02"
     }
   ]
 }
