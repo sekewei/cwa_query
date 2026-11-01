@@ -1,0 +1,80 @@
+7 Day Weather Forecast API (given-key-authentication required)
+
+https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/F-C0032-003?Authorization=rdec-key-123-45678-011121314&format=JSON
+
+=====================================================================
+JSON FORMAT SUMMARY (dataset F-C0032-003, 七天天氣預報)
+=====================================================================
+
+Structure (nested tree):
+
+cwaopendata
+ |- Identifier, Sender, Sent, Status, MsgType, Source, Dataid, Scope   (message metadata)
+ |- Dataset
+     |- DatasetInfo
+     |   |- DatasetDescription   "七天天氣預報"
+     |   |- DatasetLanguage      "zh-TW"
+     |   |- DataValueInfo        describes each element: description + unit
+     |   |     MaxTemperature (最高溫度, 攝氏度), MinTemperature (最低溫度, 攝氏度),
+     |   |     Weather (天氣現象), WeatherCode (天氣現象代碼)
+     |   |- IssueTime            forecast issue time
+     |   |- Update               last update time
+     |- Locations
+         |- Location[]           array, one entry per region / scenic spot
+              |- LocationName    e.g. 北部地區, 臺北市, 玉山
+              |- WeatherElement[]   always 3 entries:
+                   |- ElementName  "天氣現象" | "最高溫度" | "最低溫度"
+                   |- Time[]       7 entries, one per day
+                        |- StartTime, EndTime
+                        |- ElementValue  (one key depending on the element)
+
+How to read it:
+
+1. Locations: Dataset.Locations.Location is an array of about 30 places.
+   - Regions: 北部, 中部, 南部, 東北部, 東部, 東南部地區
+   - City: 臺北市
+   - Outlying islands: 澎湖, 金門, 馬祖, 綠島, 蘭嶼, 小琉球
+   - Scenic/mountain spots: 日月潭, 溪頭, 梨山, 太魯閣, 墾丁, 玉山, 拉拉山, 阿里山,
+     陽明山, 龍洞, 三仙台, 合歡山
+
+2. Elements: each Location has 3 WeatherElement items. Pick one by ElementName.
+   - 天氣現象 -> ElementValue = { "Weather": text, "WeatherCode": "02" }
+   - 最高溫度 -> ElementValue = { "MaxTemperature": "26" }   (string, °C)
+   - 最低溫度 -> ElementValue = { "MinTemperature": "22" }   (string, °C)
+
+3. Time periods: each element has 7 Time entries, one per day.
+   - The first period starts at issue time (e.g. 2026-11-01T18:00+0800) and ends at 00:00.
+   - The following periods are full days (00:00 to next 00:00).
+   - Note the time format has no colon in the offset ("+0800"), unlike
+     Sent/IssueTime ("+08:00").
+
+Notes for parsing:
+ - Temperatures are strings, convert to numbers before computing.
+ - WeatherCode is not unique per description (e.g. 08 = 多雲短暫雨 / 多雲短暫陣雨;
+   10 and 11 are also shared by several texts). Use Weather for display text.
+ - Index i in 天氣現象, 最高溫度 and 最低溫度 refers to the same day.
+
+Minimal example (one location, one day):
+
+{
+  "LocationName": "臺北市",
+  "WeatherElement": [
+    { "ElementName": "天氣現象", "Time": [ { "StartTime": "2026-11-02T00:00:00+0800",
+        "EndTime": "2026-11-03T00:00:00+0800",
+        "ElementValue": { "Weather": "多雲短暫雨", "WeatherCode": "08" } } ] },
+    { "ElementName": "最高溫度", "Time": [ { "StartTime": "2026-11-02T00:00:00+0800",
+        "EndTime": "2026-11-03T00:00:00+0800",
+        "ElementValue": { "MaxTemperature": "26" } } ] },
+    { "ElementName": "最低溫度", "Time": [ { "StartTime": "2026-11-02T00:00:00+0800",
+        "EndTime": "2026-11-03T00:00:00+0800",
+        "ElementValue": { "MinTemperature": "23" } } ] }
+  ]
+}
+
+Access path examples (JavaScript):
+  const locs = data.cwaopendata.Dataset.Locations.Location;
+  const taipei = locs.find(l => l.LocationName === "臺北市");
+  const maxT = taipei.WeatherElement.find(e => e.ElementName === "最高溫度")
+                     .Time.map(t => Number(t.ElementValue.MaxTemperature));
+
+

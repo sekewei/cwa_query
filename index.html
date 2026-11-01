@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CWA Weather Forecast Test</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #111827;
+        --panel: #1f2937;
+        --text: #f9fafb;
+        --muted: #cbd5e1;
+        --accent: #60a5fa;
+        --border: #374151;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: var(--text);
+        padding: 24px;
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin-bottom: 12px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+
+      select {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        min-width: 120px;
+      }
+
+      button {
+        background: var(--accent);
+        color: #0b1120;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover { filter: brightness(1.05); }
+
+      .status {
+        color: var(--muted);
+        min-height: 24px;
+      }
+
+      .table-wrap {
+        margin: 20px 0;
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      th, td {
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: rgba(255,255,255,0.04);
+      }
+
+      .nested-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+      }
+
+      .nested-table th,
+      .nested-table td {
+        padding: 6px 8px;
+        font-size: 0.9em;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      pre {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        color: #e5e7eb;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow: auto;
+      }
+
+      .meta {
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>CWA Weather Forecast API Test</h1>
+      <div class="meta">Endpoint: https://cwa-forecast.sekewei.workers.dev/api/</div>
+
+      <div class="controls">
+        <label for="datasetSelect">Dataset:</label>
+        <select id="datasetSelect">
+          <option value="7day" selected>7-Day Forecast</option>
+          <option value="36hour">36-Hour Forecast</option>
+        </select>
+
+        <label for="locationSelect">Location:</label>
+        <select id="locationSelect">
+          <option value="">-- Select Location --</option>
+        </select>
+
+        <button id="loadBtn">Load Forecast</button>
+      </div>
+
+      <div id="status" class="status">Ready.</div>
+
+      <div class="table-wrap">
+        <table id="routeTable">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="2">No data loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre id="output">{}</pre>
+    </div>
+
+    <script>
+      const datasetSelect = document.getElementById('datasetSelect');
+      const locationSelect = document.getElementById('locationSelect');
+      const outputEl = document.getElementById('output');
+      const statusEl = document.getElementById('status');
+      const loadBtn = document.getElementById('loadBtn');
+      const tableBody = document.getElementById('tableBody');
+
+      const BASE_URL = 'https://cwa-forecast.sekewei.workers.dev';
+
+      async function updateLocationList() {
+        const dataset = datasetSelect.value;
+        statusEl.textContent = `Updating location list for ${dataset}...`;
+        try {
+          const response = await fetch(`${BASE_URL}/api/${dataset}/locations`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          
+          locationSelect.innerHTML = '<option value="">-- Select Location --</option>';
+          data.locations.forEach(loc => {
+            const opt = document.createElement('option');
+            opt.value = loc;
+            opt.textContent = loc;
+            locationSelect.appendChild(opt);
+          });
+          statusEl.textContent = `Loaded ${data.locations.length} locations.`;
+        } catch (error) {
+          statusEl.textContent = `Error loading locations: ${error.message}`;
+        }
+      }
+
+      function renderTable(data) {
+        if (!data || typeof data !== 'object') {
+          tableBody.innerHTML = '<tr><td colspan="2">No valid data.</td></tr>';
+          return;
+        }
+
+        const rows = [];
+
+        const renderValue = (value) => {
+          if (Array.isArray(value)) {
+            if (value.length === 0) return '<em>(empty)</em>';
+
+            const first = value[0];
+            if (first && typeof first === 'object') {
+              return `
+                <table class="nested-table">
+                  <thead>
+                    <tr>${Object.keys(first).map(k => `<th>${k}</th>`).join('')}</tr>
+                  </thead>
+                  <tbody>
+                    ${value.map(item => `
+                      <tr>${Object.values(item).map(v => `<td>${String(v ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join('')}</tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `;
+            }
+
+            return '<ul>' + value.map(v => `<li>${String(v ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</li>`).join('') + '</ul>';
+          }
+
+          if (value && typeof value === 'object') {
+            return `
+              <table class="nested-table">
+                <tbody>
+                  ${Object.entries(value).map(([k, v]) => `
+                    <tr><th>${k}</th><td>${String(v ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td></tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+          }
+
+          return String(value ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        };
+
+        const flatten = (obj, prefix = '') => {
+          Object.entries(obj).forEach(([key, value]) => {
+            const fullKey = prefix ? `${prefix}.${key}` : key;
+
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+              flatten(value, fullKey);
+              return;
+            }
+
+            rows.push({ key: fullKey, value: renderValue(value) });
+          });
+        };
+
+        flatten(data);
+
+        tableBody.innerHTML = rows.map(row => `
+          <tr>
+            <td>${row.key}</td>
+            <td>${row.value}</td>
+          </tr>
+        `).join('');
+      }
+
+      async function loadForecast() {
+        const dataset = datasetSelect.value;
+        const location = locationSelect.value;
+        if (!location) {
+          statusEl.textContent = 'Please select a location first.';
+          return;
+        }
+
+        const endpoint = `${BASE_URL}/api/${dataset}/forecast?location=${encodeURIComponent(location)}`;
+
+        statusEl.textContent = `Requesting ${dataset} forecast for ${location}...`;
+        outputEl.textContent = 'Loading...';
+        tableBody.innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+
+        try {
+          const response = await fetch(endpoint);
+          if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+          const data = await response.json();
+          renderTable(data);
+          outputEl.textContent = JSON.stringify(data, null, 2);
+          statusEl.textContent = `Success (${response.status}) for ${location}`;
+        } catch (error) {
+          const errorData = {
+            error: error.message,
+            dataset,
+            location,
+            endpoint
+          };
+
+          tableBody.innerHTML = '<tr><td colspan="2">Request failed.</td></tr>';
+          outputEl.textContent = JSON.stringify(errorData, null, 2);
+          statusEl.textContent = 'Request failed';
+        }
+      }
+
+      datasetSelect.addEventListener('change', updateLocationList);
+      loadBtn.addEventListener('click', loadForecast);
+      
+      // Init
+      updateLocationList();
+    </script>
+  </body>
+</html>

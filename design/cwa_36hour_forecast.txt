@@ -1,0 +1,129 @@
+36-Hour Weather Forecast API (given-key-authentication required)
+
+https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/F-C0032-001?Authorization={CWA_API_KEY}&format=JSON
+
+=====================================================================
+JSON FORMAT SUMMARY (dataset F-C0032-001, 三十六小時天氣預報)
+=====================================================================
+
+Structure (nested tree):
+
+cwaopendata
+ |- @xmlns, identifier, sender, sent, status, msgType, source, dataid, scope
+    (message metadata, all lowercase keys)
+ |- dataset
+     |- datasetInfo
+     |   |- datasetDescription   "三十六小時天氣預報"
+     |   |- issueTime            forecast issue time (e.g. 2026-11-01T17:00:00+08:00)
+     |   |- update               last update time
+     |- location[]               array, one entry per county/city (22 entries)
+          |- locationName        e.g. 臺北市, 新北市, 花蓮縣
+          |- weatherElement[]    always 5 entries:
+               |- elementName    "Wx" | "MaxT" | "MinT" | "CI" | "PoP"
+               |- time[]         3 entries, one per 12-hour period
+                    |- startTime, endTime
+                    |- parameter  (object, fields depend on element)
+
+How to read it:
+
+1. Locations: dataset.location is an array of 22 places (all counties/cities).
+   - 直轄市 (7): 臺北市, 新北市, 桃園市, 臺中市, 臺南市, 高雄市, 基隆市
+   - 縣 (15): 新竹縣, 新竹市, 苗栗縣, 彰化縣, 南投縣, 雲林縣, 嘉義縣,
+     嘉義市, 屏東縣, 宜蘭縣, 花蓮縣, 臺東縣, 澎湖縣, 金門縣, 連江縣
+
+   Note: This dataset covers ALL 22 counties/cities, unlike F-C0032-003
+   (7-day) which only has 25 mixed regions/scenic spots.
+
+2. Elements: each location has 5 weatherElement items. Pick one by elementName.
+   - Wx   -> parameter = { "parameterName": "晴時多雲", "parameterValue": "2" }
+   - MaxT -> parameter = { "parameterName": "26", "parameterUnit": "C" }
+   - MinT -> parameter = { "parameterName": "23", "parameterUnit": "C" }
+   - CI   -> parameter = { "parameterName": "舒適" }
+   - PoP  -> parameter = { "parameterName": "20", "parameterUnit": "百分比" }
+
+   Element meanings:
+   - Wx   = 天氣現象 (weather phenomenon)
+   - MaxT = 最高溫度 (max temperature, °C)
+   - MinT = 最低溫度 (min temperature, °C)
+   - CI   = 舒適度 (comfort index)
+   - PoP  = 降雨機率 (probability of precipitation, %)
+
+3. Time periods: each element has 3 time entries, covering 36 hours total.
+   - Period 1: issue time (e.g. 18:00) to next 06:00  (12 hours)
+   - Period 2: 06:00 to 18:00                          (12 hours)
+   - Period 3: 18:00 to next 06:00                      (12 hours)
+   - The first period starts at the forecast issue time, not midnight.
+   - Time format uses colon in offset: "+08:00" (unlike F-C0032-003 which uses "+0800").
+
+4. Key differences from F-C0032-003 (7-day):
+   - All JSON keys are LOWERCASE (dataset, location, weatherElement, time, parameter)
+   - Values are in "parameter" object, NOT "elementValue"
+   - 5 elements instead of 3 (adds CI comfort index and PoP rain probability)
+   - 3 periods of 12 hours each (36h total) instead of 7 daily periods
+   - 22 county/city locations instead of 25 mixed regions
+   - Time offset format: "+08:00" (with colon) instead of "+0800"
+
+Notes for parsing:
+ - Temperatures and PoP are strings, convert to numbers before computing.
+ - Wx parameterValue is a weather code (string), parameterName is the display text.
+ - CI has no parameterUnit, only parameterName (e.g. "舒適", "悶熱", "寒冷").
+ - Index i in all 5 elements refers to the same 12-hour period.
+ - The dataset is updated roughly every 3 hours by CWA.
+
+Minimal example (one location, all 3 periods):
+
+{
+  "locationName": "臺北市",
+  "weatherElement": [
+    { "elementName": "Wx", "time": [
+        { "startTime": "2026-11-01T18:00:00+08:00", "endTime": "2026-11-02T06:00:00+08:00",
+          "parameter": { "parameterName": "晴時多雲", "parameterValue": "2" } },
+        { "startTime": "2026-11-02T06:00:00+08:00", "endTime": "2026-11-02T18:00:00+08:00",
+          "parameter": { "parameterName": "多雲短暫雨", "parameterValue": "8" } },
+        { "startTime": "2026-11-02T18:00:00+08:00", "endTime": "2026-11-03T06:00:00+08:00",
+          "parameter": { "parameterName": "陰短暫雨", "parameterValue": "11" } }
+    ]},
+    { "elementName": "MaxT", "time": [
+        { "startTime": "2026-11-01T18:00:00+08:00", "endTime": "2026-11-02T06:00:00+08:00",
+          "parameter": { "parameterName": "26", "parameterUnit": "C" } },
+        { "startTime": "2026-11-02T06:00:00+08:00", "endTime": "2026-11-02T18:00:00+08:00",
+          "parameter": { "parameterName": "26", "parameterUnit": "C" } },
+        { "startTime": "2026-11-02T18:00:00+08:00", "endTime": "2026-11-03T06:00:00+08:00",
+          "parameter": { "parameterName": "24", "parameterUnit": "C" } }
+    ]},
+    { "elementName": "MinT", "time": [
+        { "startTime": "2026-11-01T18:00:00+08:00", "endTime": "2026-11-02T06:00:00+08:00",
+          "parameter": { "parameterName": "23", "parameterUnit": "C" } },
+        { "startTime": "2026-11-02T06:00:00+08:00", "endTime": "2026-11-02T18:00:00+08:00",
+          "parameter": { "parameterName": "23", "parameterUnit": "C" } },
+        { "startTime": "2026-11-02T18:00:00+08:00", "endTime": "2026-11-03T06:00:00+08:00",
+          "parameter": { "parameterName": "23", "parameterUnit": "C" } }
+    ]},
+    { "elementName": "CI", "time": [
+        { "startTime": "2026-11-01T18:00:00+08:00", "endTime": "2026-11-02T06:00:00+08:00",
+          "parameter": { "parameterName": "舒適" } },
+        { "startTime": "2026-11-02T06:00:00+08:00", "endTime": "2026-11-02T18:00:00+08:00",
+          "parameter": { "parameterName": "舒適" } },
+        { "startTime": "2026-11-02T18:00:00+08:00", "endTime": "2026-11-03T06:00:00+08:00",
+          "parameter": { "parameterName": "舒適" } }
+    ]},
+    { "elementName": "PoP", "time": [
+        { "startTime": "2026-11-01T18:00:00+08:00", "endTime": "2026-11-02T06:00:00+08:00",
+          "parameter": { "parameterName": "20", "parameterUnit": "百分比" } },
+        { "startTime": "2026-11-02T06:00:00+08:00", "endTime": "2026-11-02T18:00:00+08:00",
+          "parameter": { "parameterName": "40", "parameterUnit": "百分比" } },
+        { "startTime": "2026-11-02T18:00:00+08:00", "endTime": "2026-11-03T06:00:00+08:00",
+          "parameter": { "parameterName": "30", "parameterUnit": "百分比" } }
+    ]}
+  ]
+}
+
+Access path examples (JavaScript):
+  const locs = data.cwaopendata.dataset.location;
+  const taipei = locs.find(l => l.locationName === "臺北市");
+  const wx = taipei.weatherElement.find(e => e.elementName === "Wx")
+                   .time.map(t => t.parameter.parameterName);
+  const maxT = taipei.weatherElement.find(e => e.elementName === "MaxT")
+                   .time.map(t => Number(t.parameter.parameterName));
+  const pop = taipei.weatherElement.find(e => e.elementName === "PoP")
+                   .time.map(t => Number(t.parameter.parameterName));
